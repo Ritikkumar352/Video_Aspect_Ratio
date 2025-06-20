@@ -1,0 +1,35 @@
+services:
+  mysql_video:
+    image: mysql:9.0
+    container_name: mysql_video_aspect
+    environment:
+      MYSQL_DATABASE: video_converter_db
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${SPRING_DATASOURCE_USERNAME}
+      MYSQL_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+    ports:
+      - "3309:3306"
+    volumes:
+      - video_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  video_converter_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: video_converter_app
+    depends_on:
+      mysql_video:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  video_mysql_data:
