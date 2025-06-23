@@ -6,7 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/videos")
@@ -18,18 +18,42 @@ public class VideoController {
         this.videoService = videoService;
     }
 
+    // Upload original + async conversion
     @PostMapping("/upload")
-    public ResponseEntity<String> uploadVideo(
+    public ResponseEntity<Map<String, Object>> uploadVideo(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "mode", defaultValue = "crop") String mode
     ) {
-        Long groupId = videoService.handleVideoUpload(file, mode);
-        return ResponseEntity.ok("Video uploaded and processed. Group ID: " + groupId);
+        Map<String, Object> result = videoService.handleVideoUpload(file, mode);
+        return ResponseEntity.ok(result);
     }
 
+    // Upload original only (no conversion)
+    @PostMapping("/upload-original")
+    public ResponseEntity<Map<String, Object>> uploadOriginalOnly(
+            @RequestParam("file") MultipartFile file
+    ) {
+        UUID videoId = videoService.uploadOriginalOnly(file);
+        Map<String, Object> response = new HashMap<>();
+        response.put("videoId", videoId);
+        response.put("streamUrl", "/api/videos/version/" + videoId + "/stream");
+        return ResponseEntity.ok(response);
+    }
+
+    // Get all versions by groupId
     @GetMapping("/group/{id}")
     public ResponseEntity<List<VideoVersion>> getAllVersionsByGroup(@PathVariable Long id) {
         List<VideoVersion> versions = videoService.getAllVersionsByGroup(id);
         return ResponseEntity.ok(versions);
+    }
+
+    // Stream video by UUID
+    @GetMapping("/version/{id}/stream")
+    public ResponseEntity<byte[]> streamVideo(@PathVariable UUID id) {
+        VideoVersion video = videoService.getVideoById(id);
+        return ResponseEntity.ok()
+                .header("Content-Type", "video/mp4")
+                .header("Content-Disposition", "inline; filename=" + video.getConvertedFilename())
+                .body(video.getVideoData());
     }
 }
