@@ -6,6 +6,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 public interface VideoService {
-    void handleVideoUpload(MultipartFile file);
+    Long handleVideoUpload(MultipartFile file, String mode);  // changed from void → Long
     List<VideoVersion> getAllVersionsByGroup(Long groupId);
 }

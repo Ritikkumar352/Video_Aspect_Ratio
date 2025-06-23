@@ -19,12 +19,14 @@ public class VideoController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<String> uploadVideo(@RequestParam("file") MultipartFile file) {
-        videoService.handleVideoUpload(file);
-        return ResponseEntity.ok("Video uploaded and processed.");
+    public ResponseEntity<String> uploadVideo(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "mode", defaultValue = "crop") String mode
+    ) {
+        Long groupId = videoService.handleVideoUpload(file, mode);
+        return ResponseEntity.ok("Video uploaded and processed. Group ID: " + groupId);
     }
 
-    // get all viedo from that group ... using grp id
     @GetMapping("/group/{id}")
     public ResponseEntity<List<VideoVersion>> getAllVersionsByGroup(@PathVariable Long id) {
         List<VideoVersion> versions = videoService.getAllVersionsByGroup(id);

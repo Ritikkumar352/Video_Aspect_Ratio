@@ -13,10 +13,7 @@ import java.io.File;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class VideoServiceImpl implements VideoService {
@@ -30,18 +27,19 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
-    public void handleVideoUpload(MultipartFile file) {
+    public Long handleVideoUpload(MultipartFile file, String mode) {
         try {
+            if (!Objects.equals(mode, "pad") && !Objects.equals(mode, "crop")) {
+                mode = "crop";
+            }
 
             Path tempDir = Files.createTempDirectory("video_upload_");
             File originalFile = new File(tempDir.toFile(), file.getOriginalFilename());
             file.transferTo(originalFile);
 
-            // group
             VideoUploadGroup group = new VideoUploadGroup();
             group.setOriginalFilename(file.getOriginalFilename());
             group = videoUploadGroupRepository.save(group);
-
 
             Map<String, String> targets = Map.of(
                     "16:9", "1920x1080",
@@ -50,20 +48,32 @@ public class VideoServiceImpl implements VideoService {
                     "4:3", "1440x1080"
             );
 
-            // Convert...save each version
             for (Map.Entry<String, String> entry : targets.entrySet()) {
                 String aspect = entry.getKey();
                 String resolution = entry.getValue();
 
+                String[] dims = resolution.split("x");
+                String width = dims[0];
+                String height = dims[1];
+
                 String outputFileName = UUID.randomUUID() + "_" + aspect.replace(":", "_") + ".mp4";
                 File outputFile = new File(tempDir.toFile(), outputFileName);
 
-                // FFmpeg command
+                String filter;
+                if (mode.equals("pad")) {
+                    filter = String.format("scale=%s:force_original_aspect_ratio=decrease,pad=%s:%s:(ow-iw)/2:(oh-ih)/2", resolution, width, height);
+                } else {
+                    filter = String.format("scale=%s:force_original_aspect_ratio=increase,crop=%s:%s", resolution, width, height);
+                }
+
                 String[] cmd = {
                         "ffmpeg", "-i", originalFile.getAbsolutePath(),
-                        "-vf", "scale=" + resolution + ":force_original_aspect_ratio=decrease,pad=" + resolution + ":(ow-iw)/2:(oh-ih)/2",
+                        "-vf", filter,
+                        "-c:a", "copy",
                         "-y", outputFile.getAbsolutePath()
                 };
+
+                System.out.println("\n[FFmpeg Command] " + String.join(" ", cmd));
 
                 ProcessBuilder pb = new ProcessBuilder(cmd);
                 pb.redirectErrorStream(true);
@@ -72,16 +82,15 @@ public class VideoServiceImpl implements VideoService {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
-                        System.out.println(line);
+                        System.out.println("[FFmpeg] " + line);
                     }
                 }
 
                 int exitCode = process.waitFor();
                 if (exitCode != 0) {
-                    throw new RuntimeException("FFmpeg failed for aspect ratio: " + aspect);
+                    throw new RuntimeException("FFmpeg failed for aspect ratio: " + aspect + ", mode: " + mode);
                 }
 
-                // Save to db
                 byte[] data = Files.readAllBytes(outputFile.toPath());
                 VideoVersion version = new VideoVersion();
                 version.setConvertedFilename(outputFileName);
@@ -92,14 +101,16 @@ public class VideoServiceImpl implements VideoService {
                 videoVersionRepository.save(version);
             }
 
-            // clean
             Files.walk(tempDir)
                     .sorted(Comparator.reverseOrder())
                     .map(Path::toFile)
                     .forEach(File::delete);
 
+            return group.getId();  // return group id
+
         } catch (Exception e) {
-            throw new RuntimeException("Error processing video", e);
+            e.printStackTrace();
+            throw new RuntimeException("Error processing video: " + e.getMessage(), e);
         }
     }
 
@@ -107,6 +118,4 @@ public class VideoServiceImpl implements VideoService {
     public List<VideoVersion> getAllVersionsByGroup(Long groupId) {
         return videoVersionRepository.findAllByGroup_Id(groupId);
     }
-
-
 }
