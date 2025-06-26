@@ -1,5 +1,6 @@
 package com.ritik.videoaspect.controller;
 
+import com.ritik.videoaspect.dto.VideoVersionDTO;
 import com.ritik.videoaspect.model.VideoVersion;
 import com.ritik.videoaspect.service.VideoService;
 import org.springframework.http.ResponseEntity;
@@ -42,10 +43,10 @@ public class VideoController {
 
     // Get all versions by groupId
     @GetMapping("/group/{id}")
-    public ResponseEntity<List<VideoVersion>> getAllVersionsByGroup(@PathVariable Long id) {
-        List<VideoVersion> versions = videoService.getAllVersionsByGroup(id);
-        return ResponseEntity.ok(versions);
+    public ResponseEntity<List<VideoVersionDTO>> getAllVersionsByGroup(@PathVariable Long id) {
+        return ResponseEntity.ok(videoService.getAllVersionsByGroup(id));
     }
+
 
     // Stream video by UUID
     @GetMapping("/version/{id}/stream")

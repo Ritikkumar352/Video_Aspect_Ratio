@@ -1,23 +1,20 @@
 package com.ritik.videoaspect.service.impl;
 
+import com.ritik.videoaspect.dto.VideoVersionDTO;
 import com.ritik.videoaspect.model.VideoUploadGroup;
 import com.ritik.videoaspect.model.VideoVersion;
 import com.ritik.videoaspect.repository.VideoUploadGroupRepository;
 import com.ritik.videoaspect.repository.VideoVersionRepository;
 import com.ritik.videoaspect.service.VideoConversionService;
 import com.ritik.videoaspect.service.VideoService;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 
 @Service
 public class VideoServiceImpl implements VideoService {
@@ -65,7 +62,7 @@ public class VideoServiceImpl implements VideoService {
             originalVersion.setUploadTime(LocalDateTime.now());
             videoVersionRepository.save(originalVersion);
 
-            // Start background conversion
+            // bg conversion -> call
             conversionService.convertAsync(originalFile, mode, group);
 
 
@@ -81,7 +78,7 @@ public class VideoServiceImpl implements VideoService {
         }
     }
 
-    // Async background video conversion
+    // asunc bg  video conversion
 //    @Async
 //    public CompletableFuture<Void> convertAsync(File originalFile, String mode, VideoUploadGroup group) {
 //        try {
@@ -154,9 +151,23 @@ public class VideoServiceImpl implements VideoService {
 
     // Get all converted versions of a video group
     @Override
-    public List<VideoVersion> getAllVersionsByGroup(Long groupId) {
-        return videoVersionRepository.findAllByGroup_Id(groupId);
+    public List<VideoVersionDTO> getAllVersionsByGroup(Long groupId) {
+        List<VideoVersion> versions = videoVersionRepository.findAllByGroup_Id(groupId);
+        List<VideoVersionDTO> dtos = new ArrayList<>();
+
+        for (VideoVersion version : versions) {
+            dtos.add(new VideoVersionDTO(
+                    version.getId(),
+                    version.getConvertedFilename(),
+                    version.getAspectRatio(),
+                    version.getResolution(),
+                    "/api/videos/version/" + version.getId() + "/stream"
+            ));
+        }
+
+        return dtos;
     }
+
 
     // Get video by version ID
     @Override
@@ -165,7 +176,7 @@ public class VideoServiceImpl implements VideoService {
                 .orElseThrow(() -> new RuntimeException("Video not found"));
     }
 
-    // upload no conversion
+    // upload -> no conversion
     @Override
     public UUID uploadOriginalOnly(MultipartFile file) {
         try {
